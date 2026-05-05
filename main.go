@@ -23,8 +23,20 @@ func main() {
 
 	fmt.Println("Current Code:", code)
 
+	// Build OTP URL (used by authenticator apps)
+	otpURL := totp.BuildOTPAuthURL("SimpleGo2FA", "user@example.com", secret)
+
+	// Generate QR (terminal output)
+	qr, err := totp.GenerateQRCode(otpURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("\nScan this QR with your authenticator app:")
+	qr.Print()
+
 	var input string
-	fmt.Print("Enter code: ")
+	fmt.Print("\nEnter code: ")
 	fmt.Scanln(&input)
 
 	if totp.VerifyCode(secret, input, time.Now()) {

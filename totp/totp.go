@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -52,6 +53,19 @@ func GenerateCode(secret string, t time.Time) (string, error) {
 	code := truncated % 1000000
 
 	return fmt.Sprintf("%06d", code), nil
+}
+
+// BuildOTPAuthURL creates an otpauth URL compatible with authenticator apps.
+func BuildOTPAuthURL(issuer, account, secret string) string {
+	label := url.QueryEscape(fmt.Sprintf("%s:%s", issuer, account))
+	issuerParam := url.QueryEscape(issuer)
+
+	return fmt.Sprintf(
+		"otpauth://totp/%s?secret=%s&issuer=%s&period=30&digits=6",
+		label,
+		secret,
+		issuerParam,
+	)
 }
 
 // VerifyCode checks if the provided code is valid within a time window.
