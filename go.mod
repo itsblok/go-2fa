@@ -1,3 +1,3 @@
-module simple-go-2fa
+module go-2fa
 
 go 1.26
