@@ -1,8 +1,8 @@
 package totp
 
-func (q *QR) placeData(bits []int) {
-	x := qrVersion1Size - 1
-	y := qrVersion1Size - 1
+func (q *QR) placeData(bytes []int) {
+	x := q.size - 1
+	y := q.size - 1
 	dir := -1
 
 	i := 0
@@ -16,13 +16,28 @@ func (q *QR) placeData(bits []int) {
 			for dx := 0; dx < 2; dx++ {
 				xx := x - dx
 
+				if q.isReserved(xx, y) {
+					continue
+				}
+
 				if q.matrix[y][xx] != moduleEmpty {
 					continue
 				}
 
-				if i < len(bits) {
-					q.matrix[y][xx] = bits[i]
+				var bit int
+
+				if i < len(bytes)*8 {
+					byteIndex := i / 8
+					bitIndex := 7 - (i % 8)
+
+					bit = (bytes[byteIndex] >> bitIndex) & 1
 					i++
+				} else {
+					bit = 0
+				}
+
+				if bit == 1 {
+					q.matrix[y][xx] = moduleBlack
 				} else {
 					q.matrix[y][xx] = moduleWhite
 				}
@@ -30,7 +45,7 @@ func (q *QR) placeData(bits []int) {
 
 			y += dir
 
-			if y < 0 || y >= qrVersion1Size {
+			if y < 0 || y >= q.size {
 				y -= dir
 				dir = -dir
 				break
@@ -39,4 +54,34 @@ func (q *QR) placeData(bits []int) {
 
 		x -= 2
 	}
+}
+
+func (q *QR) clone() *QR {
+	newMatrix := make([][]int, q.size)
+
+	for i := range q.matrix {
+		newMatrix[i] = append([]int(nil), q.matrix[i]...)
+	}
+
+	return &QR{
+		matrix: newMatrix,
+		size:   q.size,
+		mask:   q.mask,
+	}
+}
+
+func (q *QR) isReserved(x, y int) bool {
+	// finder patterns (top-left, top-right, bottom-left)
+	if (x < 9 && y < 9) ||
+		(x > q.size-9 && y < 9) ||
+		(x < 9 && y > q.size-9) {
+		return true
+	}
+
+	// timing patterns
+	if x == 6 || y == 6 {
+		return true
+	}
+
+	return false
 }

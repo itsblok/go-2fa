@@ -5,61 +5,117 @@ import (
 )
 
 const (
-	qrVersion1Size = 21
-	maxDataLength  = 64
+	maxDataLengthV1 = 64
+	maxDataLengthV2 = 128
 
 	moduleEmpty = -1
 	moduleWhite = 0
 	moduleBlack = 1
 
-	quietZone = 0
+	quietZone = 4
+
+	eccLevelL = 1
 )
 
 type QR struct {
-	matrix [qrVersion1Size][qrVersion1Size]int
+	matrix [][]int
+	size   int
+	mask   int
 }
 
-// GenerateQRCode builds a minimal QR matrix.
-// Only supports very small payloads.
-func GenerateQRCode(data string) (*QR, error) {
-	if len(data) > maxDataLength {
-		// TODO: Support larger QR versions
-		// - Select QR version dynamically based on data length
-		// - Update matrix size (e.g. 25x25, 29x29, ...)
-		// - Adjust alignment patterns for higher versions
-		return nil, fmt.Errorf("data too long for current QR version")
+type QRVersion struct {
+	size         int
+	dataCapacity int
+}
+
+var version1 = QRVersion{21, 64}
+var version2 = QRVersion{25, 128}
+
+func selectVersion(len int) QRVersion {
+	if len <= maxDataLengthV1 {
+		return version1
+	}
+	return version2
+}
+
+func newQR(size int) *QR {
+	matrix := make([][]int, size)
+
+	for i := range matrix {
+		matrix[i] = make([]int, size)
 	}
 
-	qr := &QR{}
+	return &QR{
+		matrix: matrix,
+		size:   size,
+	}
+}
+
+func GenerateQRCode(data string) (*QR, error) {
+	dataBytes := []byte(data)
+
+	version := selectVersion(len(dataBytes))
+
+	if !version.fits(dataBytes) {
+		return nil, fmt.Errorf("data too large for QR version")
+	}
+
+	qr := newQR(version.size)
+
 	qr.initMatrix()
 	qr.addFinderPatterns()
 	qr.addTimingPatterns()
 
 	bits := encodeData(data)
 
-	// Right now we are placing raw data bits directly into the matrix.
-	// This makes the QR fragile and difficult to scan.
-	// TODO: Add Reed-Solomon error correction
-	// - Split data into codewords (8-bit blocks)
-	// - Generate error correction codewords using Reed-Solomon
-	// - Interleave data and EC codewords as per QR spec
-	// - Append final bit stream before placement
+	// ECC now works on BYTE STREAM
+	final := applyECC(bits)
 
-	qr.placeData(bits)
+	qr.placeData(final)
 
-	// TODO: Apply masking patterns
-	// - Apply all mask patterns (0–7)
-	// - Score each result using penalty rules
-	// - Select the best one
+	best := qr.selectBestMask()
 
-	return qr, nil
+	best.applyFormatInfo(best.mask)
+
+	return best, nil
 }
 
-// Print renders QR to terminal.
+func (q *QR) selectBestMask() *QR {
+	var best *QR
+	bestScore := int(^uint(0) >> 1)
+
+	for mask := 0; mask < 8; mask++ {
+		candidate := q.clone()
+		candidate.mask = mask
+
+		candidate.applyMask(mask)
+
+		// format info must be applied before scoring
+		candidate.applyFormatInfo(mask)
+
+		score := candidate.score()
+
+		if score < bestScore {
+			bestScore = score
+			best = candidate
+		}
+	}
+
+	return best
+}
+
+func (q *QR) initMatrix() {
+	for y := 0; y < q.size; y++ {
+		for x := 0; x < q.size; x++ {
+			q.matrix[y][x] = moduleEmpty
+		}
+	}
+}
+
 func (q *QR) Print() {
-	for y := -quietZone; y < qrVersion1Size+quietZone; y++ {
-		for x := -quietZone; x < qrVersion1Size+quietZone; x++ {
-			if x < 0 || y < 0 || x >= qrVersion1Size || y >= qrVersion1Size {
+	for y := -quietZone; y < q.size+quietZone; y++ {
+		for x := -quietZone; x < q.size+quietZone; x++ {
+			if x < 0 || y < 0 || x >= q.size || y >= q.size {
 				fmt.Print("  ")
 				continue
 			}
@@ -70,15 +126,18 @@ func (q *QR) Print() {
 				fmt.Print("  ")
 			}
 		}
-
 		fmt.Println()
 	}
 }
 
-func (q *QR) initMatrix() {
-	for y := 0; y < qrVersion1Size; y++ {
-		for x := 0; x < qrVersion1Size; x++ {
-			q.matrix[y][x] = moduleEmpty
-		}
-	}
+func (v QRVersion) fits(data []byte) bool {
+	return len(data) <= v.dataCapacity
+}
+
+func (q *QR) Size() int {
+	return q.size
+}
+
+func (q *QR) Mask() int {
+	return q.mask
 }

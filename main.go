@@ -24,31 +24,27 @@ func main() {
 	fmt.Println("Current Code:", code)
 
 	// Build OTP URL (used by authenticator apps)
-	// otpURL := totp.BuildOTPAuthURL("SimpleGo2FA", "user@example.com", secret)
-
-	// Generate QR (terminal output)
-	// qr, err := totp.GenerateQRCode(otpURL)
-	// if err != nil {
-	//	log.Fatal(err)
-	// }
-
-	// Simplified OTP URL to fit current QR generator limitations.
-	// The current implementation only supports very small payloads (~64 bytes),
-	// while a full otpauth URL typically exceeds this limit.
-	// TODO: Restore full otpauth URL once QR generator supports larger versions.
 	otpURL := "otpauth://totp/?secret=" + secret
-	
+
 	qr, err := totp.GenerateQRCode(otpURL)
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	fmt.Println("\nScan this QR with your authenticator app:")
+
+	// terminal print (debug)
 	qr.Print()
 
 	var input string
 	fmt.Print("\nEnter code: ")
-	fmt.Scanln(&input)
+
+	if _, err := fmt.Scanln(&input); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("QR Size:", qr.Size())
+	fmt.Println("Mask Used:", qr.Mask())
 
 	if totp.VerifyCode(secret, input, time.Now()) {
 		fmt.Println("Valid code")

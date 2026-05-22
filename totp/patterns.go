@@ -7,7 +7,7 @@ func (q *QR) addFinderPatterns() {
 				xx := x + dx
 				yy := y + dy
 
-				if xx < 0 || yy < 0 || xx >= qrVersion1Size || yy >= qrVersion1Size {
+				if xx < 0 || yy < 0 || xx >= q.size || yy >= q.size {
 					continue
 				}
 
@@ -23,12 +23,12 @@ func (q *QR) addFinderPatterns() {
 	}
 
 	addFinder(0, 0)
-	addFinder(qrVersion1Size-7, 0)
-	addFinder(0, qrVersion1Size-7)
+	addFinder(q.size-7, 0)
+	addFinder(0, q.size-7)
 }
 
 func (q *QR) addTimingPatterns() {
-	for i := 8; i < qrVersion1Size-8; i++ {
+	for i := 8; i < q.size-8; i++ {
 		val := moduleWhite
 
 		if i%2 == 1 {
