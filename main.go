@@ -36,6 +36,13 @@ func main() {
 	// terminal print (debug)
 	qr.Print()
 
+	// png export (experimental)
+	if err := qr.SavePNG("qr.png", 10); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("\nQR saved as qr.png")
+
 	var input string
 	fmt.Print("\nEnter code: ")
 
