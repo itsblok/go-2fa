@@ -13,73 +13,72 @@ import (
 )
 
 const (
-	secretSize = 20 // 160-bit secret
-	timeStep   = 30 // seconds
-	digits     = 6
+	secretSize = 20
+	timeStep   = 30
+	codeDigits = 6
 )
 
-// GenerateSecret returns a new Base32-encoded secret.
+// GenerateSecret creates a new base32 encoded TOTP secret.
 func GenerateSecret() (string, error) {
-	b := make([]byte, secretSize)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
+	buf := make([]byte, secretSize)
 
-	// Base32 without padding for compatibility with authenticator apps
-	return strings.TrimRight(base32.StdEncoding.EncodeToString(b), "="), nil
-}
-
-// GenerateCode produces a TOTP code for a given secret and timestamp.
-func GenerateCode(secret string, t time.Time) (string, error) {
-	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.ToUpper(secret))
+	_, err := rand.Read(buf)
 	if err != nil {
 		return "", err
 	}
 
+	secret := base32.StdEncoding.EncodeToString(buf)
+	secret = strings.TrimRight(secret, "=")
+
+	return secret, nil
+}
+
+// GenerateCode generates the current TOTP code.
+func GenerateCode(secret string, t time.Time) (string, error) {
+	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	if err != nil {
+		return "", fmt.Errorf("invalid secret encoding")
+	}
+
 	counter := uint64(t.Unix() / timeStep)
 
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], counter)
+	var msg [8]byte
+	binary.BigEndian.PutUint64(msg[:], counter)
 
 	h := hmac.New(sha1.New, key)
-	h.Write(buf[:])
+	h.Write(msg[:])
+
 	hash := h.Sum(nil)
+	offset := hash[len(hash)-1] & 0x0f
 
-	offset := hash[len(hash)-1] & 0x0F
+	code := (int(hash[offset])&0x7f)<<24 |
+		int(hash[offset+1])<<16 |
+		int(hash[offset+2])<<8 |
+		int(hash[offset+3])
 
-	truncated := binary.BigEndian.Uint32(hash[offset : offset+4])
-	truncated &= 0x7FFFFFFF
-
-	code := truncated % 1000000
+	code %= 1000000
 
 	return fmt.Sprintf("%06d", code), nil
 }
 
-// BuildOTPAuthURL creates an otpauth URL compatible with authenticator apps.
-func BuildOTPAuthURL(issuer, account, secret string) string {
-	label := url.QueryEscape(fmt.Sprintf("%s:%s", issuer, account))
-	issuerParam := url.QueryEscape(issuer)
+// VerifyCode validates a TOTP code.
+func VerifyCode(secret, input string, t time.Time) bool {
+	code, err := GenerateCode(secret, t)
+	if err != nil {
+		return false
+	}
 
-	return fmt.Sprintf(
-		"otpauth://totp/%s?secret=%s&issuer=%s&period=30&digits=6",
-		label,
-		secret,
-		issuerParam,
-	)
+	return code == input
 }
 
-// VerifyCode checks if the provided code is valid within a time window.
-func VerifyCode(secret, code string, t time.Time) bool {
-	// Allow ±1 time step to tolerate clock drift
-	for i := -1; i <= 1; i++ {
-		ts := t.Add(time.Duration(i*timeStep) * time.Second)
-		gen, err := GenerateCode(secret, ts)
-		if err != nil {
-			return false
-		}
-		if gen == code {
-			return true
-		}
-	}
-	return false
+// BuildOTPAuthURL builds an otpauth URL for authenticator apps.
+func BuildOTPAuthURL(issuer, account, secret string) string {
+	label := url.QueryEscape(issuer + ":" + account)
+
+	return fmt.Sprintf(
+		"otpauth://totp/%s?secret=%s&issuer=%s",
+		label,
+		secret,
+		url.QueryEscape(issuer),
+	)
 }
