@@ -34,25 +34,33 @@ func rsComputeECC(data []int, ecLen int) []int {
 		ec[len(ec)-1] = 0
 
 		for i := 0; i < ecLen; i++ {
-			ec[i] ^= gfMul(gen[i], factor)
+			// fix: gen has ecLen+1 coefficients; index 0 is the leading 1
+			// which is implicit, so we multiply against gen[i+1]
+			ec[i] ^= gfMul(gen[i+1], factor)
 		}
 	}
 
 	return ec
 }
 
-func applyECC(data []int) []int {
+// applyECC pads data to dataCapacity codewords, computes ecLen ECC bytes,
+// and returns the full interleaved codeword slice.
+func applyECC(data []int, dataCapacity int, ecLen int) []int {
 	bytes := bitsToBytes(data)
 
-	dataBytes := bytes
+	// pad to exact data codeword capacity with alternating 0xEC / 0x11
+	for i := 0; len(bytes) < dataCapacity; i++ {
+		if i%2 == 0 {
+			bytes = append(bytes, 0xEC)
+		} else {
+			bytes = append(bytes, 0x11)
+		}
+	}
 
-	ecLen := 10 // QR-L simplified
+	ecc := rsComputeECC(bytes, ecLen)
 
-	ecc := rsComputeECC(dataBytes, ecLen)
-
-	result := make([]int, 0, len(dataBytes)+len(ecc))
-
-	result = append(result, dataBytes...)
+	result := make([]int, 0, len(bytes)+len(ecc))
+	result = append(result, bytes...)
 	result = append(result, ecc...)
 
 	return result

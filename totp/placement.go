@@ -71,7 +71,7 @@ func (q *QR) clone() *QR {
 }
 
 func (q *QR) isReserved(x, y int) bool {
-	// finder patterns (top-left, top-right, bottom-left)
+	// finder patterns (top-left, top-right, bottom-left) + separators
 	if (x < 9 && y < 9) ||
 		(x > q.size-9 && y < 9) ||
 		(x < 9 && y > q.size-9) {
@@ -83,5 +83,18 @@ func (q *QR) isReserved(x, y int) bool {
 		return true
 	}
 
+	// alignment pattern (Version 2+): 5×5 block centered at alignmentCenter
+	cx := alignmentCenter(q.size)
+	if cx >= 0 && abs(x-cx) <= 2 && abs(y-cx) <= 2 {
+		return true
+	}
+
 	return false
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }

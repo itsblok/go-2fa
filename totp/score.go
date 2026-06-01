@@ -71,5 +71,10 @@ func isFunctional(x, y, size int) bool {
 		return false
 	}
 
+	cx := alignmentCenter(size)
+	if cx >= 0 && abs(x-cx) <= 2 && abs(y-cx) <= 2 {
+		return false
+	}
+
 	return true
 }
