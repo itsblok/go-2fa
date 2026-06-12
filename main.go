@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"go-2fa/totp"
+	"github.com/itsblok/go-2fa/totp"
 )
 
 func main() {

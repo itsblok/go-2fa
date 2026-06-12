@@ -1,3 +1,3 @@
-module go-2fa
+module github.com/itsblok/go-2fa
 
 go 1.26
